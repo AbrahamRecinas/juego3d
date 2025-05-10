@@ -1,37 +1,43 @@
 // src/main.js
-import * as THREE from 'three';
-import { Raycaster, Vector2 } from 'three';
-import { OrbitControls }      from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/controls/OrbitControls.js';
-import { PlayerControls }     from './controls.js';
-import { Interactable }       from './interactables.js';
+import * as THREE                     from 'three';
+import { OrbitControls }              from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/controls/OrbitControls.js';
+import { FBXLoader }                  from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/loaders/FBXLoader.js';
+import { PlayerControls }             from './controls.js';
+import { Interactable }               from './interactables.js';
+import { AnimationMixer, LoopRepeat, AnimationClip } from 'three';
 
 ////////////////////////////////////////////////////////////////////////////////
 // Globals & Constants
 ////////////////////////////////////////////////////////////////////////////////
 const scene         = new THREE.Scene();
-const camera        = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 200);
+const camera        = new THREE.PerspectiveCamera(
+  50, window.innerWidth/window.innerHeight, 0.1, 200
+);
 const renderer      = new THREE.WebGLRenderer({ antialias: true });
 const controls      = new OrbitControls(camera, renderer.domElement);
-const collidables   = [];      // meshes para colisiones
-const interactables = [];      // lista de Interactable
-const doors         = [];      // pivots de puertas
+const collidables   = [];    // meshes blocking the player
+const interactables = [];    // interactable props
+const doors         = [];    // door pivots
+const clock         = new THREE.Clock();
 
-// Valores generales
-const salaSize      = 30;
-const wallHeight    = 10;
-const roomW         = 15;
-const roomD         = 15;
-const roomH         = 6;
-const doorWidth     = 4;
-const doorHeight    = 6;
+let playerMixer, idleAction, walkAction;
+let currentAction = 'idle';
 
-// Materiales reutilizables
+// Track movement keys
+const keyState = { KeyW:false, KeyA:false, KeyS:false, KeyD:false };
+// For orientation
+const lastPos = new THREE.Vector3();
+
+const salaSize   = 30,  wallHeight = 10;
+const roomW      = 15,  roomD      = 15, roomH = 6;
+const doorWidth  = 4,   doorHeight = 6;
+
+// Materials
 const floorMat     = new THREE.MeshStandardMaterial({ color: 0x888888 });
 const wallMat      = new THREE.MeshStandardMaterial({ color: 0x444455 });
 const roomWallMat  = new THREE.MeshStandardMaterial({ color: 0x555566, side: THREE.DoubleSide });
 const roomFloorMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
 const doorMat      = new THREE.MeshStandardMaterial({ color: 0x553311 });
-const playerMat    = new THREE.MeshStandardMaterial({ color: 0x0077ff });
 const bedMat       = new THREE.MeshStandardMaterial({ color: 0x884422 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -44,6 +50,7 @@ document.body.appendChild(renderer.domElement);
 camera.position.set(0, 30, 30);
 camera.lookAt(0, 0, 0);
 
+// OrbitControls: horizontal only, fixed tilt
 controls.enableDamping   = true;
 controls.dampingFactor   = 0.05;
 controls.enableZoom      = false;
@@ -52,7 +59,6 @@ controls.minPolarAngle   = Math.PI/4;
 controls.maxPolarAngle   = Math.PI/4;
 controls.minAzimuthAngle = -Infinity;
 controls.maxAzimuthAngle = +Infinity;
-controls.update();
 
 ////////////////////////////////////////////////////////////////////////////////
 // 2) Lighting
@@ -69,40 +75,40 @@ const floor = new THREE.Mesh(
   new THREE.PlaneGeometry(salaSize, salaSize),
   floorMat
 );
-floor.rotation.x = -Math.PI/2;
+floor.rotation.x = -Math.PI / 2;
 scene.add(floor);
 
 ////////////////////////////////////////////////////////////////////////////////
-// 4) Walls & Doors
+// 4) Walls & Doors Helpers
 ////////////////////////////////////////////////////////////////////////////////
 function createHorizontalWall(zPos, rotY = 0) {
-  const wall = new THREE.Mesh(
+  const w = new THREE.Mesh(
     new THREE.PlaneGeometry(salaSize, wallHeight),
     wallMat.clone()
   );
-  wall.position.set(0, wallHeight/2, zPos);
-  wall.rotation.y = rotY;
-  scene.add(wall);
-  collidables.push(wall);
+  w.position.set(0, wallHeight / 2, zPos);
+  w.rotation.y = rotY;
+  scene.add(w);
+  collidables.push(w);
 }
 
 function createVerticalWallWithDoor(xPos, rotY, pivotZ = 0) {
-  const sideW = (salaSize - doorWidth)/2;
+  const sideW = (salaSize - doorWidth) / 2;
   const topH  = wallHeight - doorHeight;
 
-  // segmentos laterales
-  [-1, +1].forEach(signZ => {
+  // side segments
+  [-1, 1].forEach(signZ => {
     const seg = new THREE.Mesh(
       new THREE.PlaneGeometry(sideW, wallHeight),
       wallMat.clone()
     );
-    seg.position.set(xPos, wallHeight/2, signZ*(doorWidth/2 + sideW/2));
+    seg.position.set(xPos, wallHeight / 2, signZ * (doorWidth/2 + sideW/2));
     seg.rotation.y = rotY;
     scene.add(seg);
     collidables.push(seg);
   });
 
-  // tramo superior
+  // top segment
   const top = new THREE.Mesh(
     new THREE.PlaneGeometry(doorWidth, topH),
     wallMat.clone()
@@ -112,158 +118,165 @@ function createVerticalWallWithDoor(xPos, rotY, pivotZ = 0) {
   scene.add(top);
   collidables.push(top);
 
-  // pivot de la puerta
+  // hinge pivot
   const pivot = new THREE.Object3D();
   pivot.position.set(xPos, 0, pivotZ);
   scene.add(pivot);
 
-  // geometría de la puerta: tornamos su origen al borde
-  const thickness = 0.2;
-  const doorGeom  = new THREE.BoxGeometry(thickness, doorHeight, doorWidth);
-  const side      = rotY>0 ? +1 : -1;
-  doorGeom.translate(0, 0, side*(doorWidth/2));
-
-  // mesh de la puerta
-  const doorMesh = new THREE.Mesh(doorGeom, doorMat.clone());
+  // door geometry (origin at hinge edge)
+  const dg = new THREE.BoxGeometry(0.2, doorHeight, doorWidth);
+  const side = rotY > 0 ? +1 : -1;
+  dg.translate(0, 0, side * (doorWidth/2));
+  const doorMesh = new THREE.Mesh(dg, doorMat.clone());
   doorMesh.position.set(0, doorHeight/2, 0);
   doorMesh.rotation.y = rotY;
   pivot.add(doorMesh);
 
-  // rangos para abrir/cerrar
+  // store for auto open/close
   const closedY = rotY;
   const openY   = rotY + (rotY>0 ? +Math.PI/2 : -Math.PI/2);
-
   doors.push({
-    pivot,
-    closedY,
-    openY,
-    zone: {
-      axis:      'x',
-      threshold: xPos,
-      min:      -doorWidth/2,
-      max:      +doorWidth/2
-    }
+    pivot, closedY, openY,
+    zone:{ axis:'x', threshold:xPos, min:-doorWidth/2, max:+doorWidth/2 }
   });
 }
 
 function createRoom(x) {
-  // suelo
+  // floor
   const rf = new THREE.Mesh(
     new THREE.PlaneGeometry(roomW, roomD),
     roomFloorMat.clone()
   );
-  rf.rotation.x = -Math.PI/2;
+  rf.rotation.x = -Math.PI / 2;
   rf.position.set(x, 0, 0);
   scene.add(rf);
 
-  // muros norte/sur
+  // north/south walls
   [+1, -1].forEach(sign => {
     const w = new THREE.Mesh(
       new THREE.PlaneGeometry(roomW, roomH),
       roomWallMat.clone()
     );
-    w.position.set(x, roomH/2, sign*(roomD/2));
-    w.rotation.y = sign<0? Math.PI: 0;
+    w.position.set(x, roomH/2, sign * (roomD/2));
+    w.rotation.y = sign<0 ? Math.PI : 0;
     scene.add(w);
     collidables.push(w);
   });
 
-  // muro exterior
-  const side = x<0 ? -1 : +1;
-  const w    = new THREE.Mesh(
+  // outer wall
+  const dir = x<0 ? -1 : +1;
+  const w2 = new THREE.Mesh(
     new THREE.PlaneGeometry(roomD, roomH),
     roomWallMat.clone()
   );
-  w.position.set(x + side*(roomW/2), roomH/2, 0);
-  w.rotation.y = side<0 ? Math.PI/2 : -Math.PI/2;
-  scene.add(w);
-  collidables.push(w);
+  w2.position.set(x + dir*(roomW/2), roomH/2, 0);
+  w2.rotation.y = dir<0 ? Math.PI/2 : -Math.PI/2;
+  scene.add(w2);
+  collidables.push(w2);
 }
 
-// construimos toda la estructura
+// build structure
 createHorizontalWall(-salaSize/2);
 createHorizontalWall(+salaSize/2, Math.PI);
 createVerticalWallWithDoor(-salaSize/2,  Math.PI/2, +2);
 createVerticalWallWithDoor(+salaSize/2, -Math.PI/2, -2);
-createRoom(- (salaSize/2 + roomW/2));
-createRoom(+ (salaSize/2 + roomW/2));
+const offsetX = salaSize/2 + roomW/2;
+createRoom(-offsetX);
+createRoom(+offsetX);
 
 ////////////////////////////////////////////////////////////////////////////////
-// 5) Jugador & Cama
+// 5) Player & Animations (idle.fbx + walk.fbx)
 ////////////////////////////////////////////////////////////////////////////////
-const player = new THREE.Mesh(
-  new THREE.BoxGeometry(1,1,1),
-  playerMat.clone()
-);
-player.position.set(0,0.5,0);
+const fbxLoader = new FBXLoader();
+let player = new THREE.Object3D();
+player.position.set(0, 0.5, 0);
 scene.add(player);
 
-// cama en esquina trasera de recámara derecha
-const bedX = salaSize/2 + roomW/2 - 1;   // pegada a muro este
-const bedZ = -roomD/2 + 1;               // pegada a muro norte
-const bed  = new THREE.Mesh(
+// 5.1) Load character mesh
+fbxLoader.load('models/maincharacter.fbx', char => {
+  char.scale.set(0.03, 0.03, 0.03);
+  player.add(char);
+
+  playerMixer = new THREE.AnimationMixer(char);
+
+  // 5.2) Idle clip
+  fbxLoader.load('models/idle.fbx', idleFbx => {
+    idleAction = playerMixer.clipAction(idleFbx.animations[0]);
+    idleAction.setLoop(THREE.LoopRepeat);
+    idleAction.play(); // start idle
+  });
+
+  // 5.3) Walk clip
+  fbxLoader.load('models/walk.fbx', walkFbx => {
+    // clona el clip antes de mutarlo
+    const raw = walkFbx.animations[0];
+    const walkClip = AnimationClip.parse( AnimationClip.toJSON(raw) );
+    walkClip.tracks = walkClip.tracks.filter(track =>
+      // nombre típico: "Hips.position"
+      !track.name.endsWith('.position')
+    );
+    walkAction = playerMixer.clipAction(walkClip);
+    walkAction.setLoop(LoopRepeat);
+  });
+  //Interactuar
+  fbxLoader.load('models/interact.fbx', interactFbx => {
+    interactAction = playerMixer.clipAction(interactFbx.animations[0]);
+    // Solo 1 vez, sin loop automático
+    interactAction.setLoop(THREE.LoopOnce, 1);
+    interactAction.clampWhenFinished = true;
+  });
+
+});
+
+const playerControls = new PlayerControls(
+  player, salaSize + roomW, collidables
+);
+
+// place bed
+const bed = new THREE.Mesh(
   new THREE.BoxGeometry(3,1,2),
   bedMat.clone()
 );
-bed.position.set(bedX, 0.5, bedZ);
+bed.position.set(offsetX - 1, 0.5, -roomD/2 + 1);
 scene.add(bed);
 
-// controles con colisiones
-const playerControls = new PlayerControls(player, salaSize + roomW, collidables);
-
 ////////////////////////////////////////////////////////////////////////////////
-// 6) Interactables (rangos independientes)
+// 6) Interactables + Collisions
 ////////////////////////////////////////////////////////////////////////////////
 const backZ    = -salaSize/2 + 0.5;
-const sideX    = salaSize/2 - 0.5;
+const sideWall = salaSize/2 - 0.5;
 const centerY  = 1;
 
-const salaInteractables = [
-  { pos: new THREE.Vector3(-8,   2, backZ),      name:'Ventana',         interactDist:2.5 },
-  { pos: new THREE.Vector3(-14,  0.5, -4),       name:'Válvula gas',     interactDist:2.5 },
-  { pos: new THREE.Vector3( 8,   2, backZ),      name:'Interruptor luz', interactDist:2.5 },
-  { pos: new THREE.Vector3( 0,   4,  0),         name:'Detector humo',   interactDist:5.0 },
-  { pos: new THREE.Vector3( sideX, centerY, 5),  name:'Termostato',      interactDist:2.5 },
-  { pos: new THREE.Vector3( 2,   centerY, 2),    name:'Radio',           interactDist:2.5 },
-  { pos: new THREE.Vector3( sideX, 0.5, -4),     name:'Extintor',        interactDist:2.5 }
+const configs = [
+  // main room
+  { pos:[-8,2,backZ],         name:'Ventana',       dist:2.5 },
+  { pos:[-14,0.5,-4],         name:'Válvula gas',   dist:2.5 },
+  { pos:[ 8,2,backZ],         name:'Interruptor luz',dist:2.5 },
+  { pos:[ 0,4,0],             name:'Detector humo', dist:5.0 },
+  { pos:[ sideWall,centerY,5],name:'Termostato',    dist:2.5 },
+  { pos:[ 2,centerY,2],       name:'Radio',         dist:2.5 },
+  { pos:[ sideWall,0.5,-4],   name:'Extintor',      dist:2.5 },
+  // bathroom left
+  { pos:[-offsetX+1,1,2],     name:'Llave agua',    dist:2.5 },
+  { pos:[-offsetX+0.5,2,-2],  name:'Espejo',        dist:2.5 },
+  // bedroom right
+  { pos:[ offsetX-1,0.75,0],  name:'Ropero',        dist:2.5 },
+  { pos:[ offsetX-0.2,4,2],   name:'Lámpara',       dist:2.5 }
 ];
 
-salaInteractables.forEach(cfg => {
+configs.forEach(cfg => {
   const mesh = new THREE.Mesh(
     new THREE.BoxGeometry(2,2,2),
     new THREE.MeshStandardMaterial()
   );
-  mesh.position.copy(cfg.pos);
+  mesh.position.fromArray(cfg.pos);
   scene.add(mesh);
+  collidables.push(mesh);
 
   const obj = new Interactable(mesh, cfg.name);
-  Math.random()<0.5 ? obj.markSafe() : obj.markUnsafe();
-  obj.interactDist = cfg.interactDist;
+  Math.random() < 0.5 ? obj.markSafe() : obj.markUnsafe();
+  obj.interactDist = cfg.dist;
   interactables.push(obj);
-  collidables.push(mesh);
-});
-
-const roomOffset = salaSize/2 + roomW/2;
-const roomInteractables = [
-  { pos: new THREE.Vector3(-roomOffset+1, 1,  2), name:'Llave de agua',  interactDist:2.5 },
-  { pos: new THREE.Vector3(-roomOffset+0.1,1.5,-2), name:'Espejo',         interactDist:2.5 },
-  { pos: new THREE.Vector3( roomOffset-1, 0.75,0), name:'Ropero',         interactDist:2.5 },
-  { pos: new THREE.Vector3( roomOffset-0.2,4,    2), name:'Lámpara',        interactDist:2.5 }
-];
-
-roomInteractables.forEach(cfg => {
-  const mesh = new THREE.Mesh(
-    new THREE.BoxGeometry(2,2,2),
-    new THREE.MeshStandardMaterial()
-  );
-  mesh.position.copy(cfg.pos);
-  scene.add(mesh);
-
-  const obj = new Interactable(mesh, cfg.name);
-  Math.random()<0.5 ? obj.markSafe() : obj.markUnsafe();
-  obj.interactDist = cfg.interactDist;
-  interactables.push(obj);
-  collidables.push(mesh);
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -276,8 +289,7 @@ hud.style = `
   padding:8px; font-family:Arial; z-index:100;
 `;
 document.body.appendChild(hud);
-
-function updateHUD() {
+function updateHUD(){
   let html = '<b>Interactuables:</b><br>';
   interactables.forEach(i => {
     html += `<span style="
@@ -286,65 +298,90 @@ function updateHUD() {
       margin-right:6px;"></span>${i.name}<br>`;
   });
   html += `<div style="margin-top:8px;">
-    <span style="
-      display:inline-block;width:10px;height:10px;
-      background:#88f;margin-right:6px;
-    "></span>Cama (Descansar)
+    <span style="display:inline-block;width:10px;height:10px;
+      background:#88f;margin-right:6px;"></span>Cama (Descansar)
   </div>`;
   hud.innerHTML = html;
 }
 updateHUD();
 
 ////////////////////////////////////////////////////////////////////////////////
-// 8) Interact proximity + E
+// 8) Input Handling
 ////////////////////////////////////////////////////////////////////////////////
 window.addEventListener('keydown', e => {
+  if (keyState.hasOwnProperty(e.code)) keyState[e.code] = true;
   if (e.code === 'KeyE') {
-    // objetos
     for (const obj of interactables) {
-      const d = obj.mesh.position.distanceTo(player.position);
-      const r = obj.interactDist ?? 2.0;
-      if (d < r) {
+      if (obj.mesh.position.distanceTo(player.position) < obj.interactDist) {
         obj.toggleSafe();
         updateHUD();
         return;
       }
     }
-    // cama (siempre posible)
-    if (bed.position.distanceTo(player.position) < 2.0) {
-      if (interactables.every(i => i.isSafe)) {
-        alert('Descansando… ¡Has ganado!');
-      } else {
-        alert('Descansando… ¡Has perdido! Faltan objetos por asegurar.');
-      }
+    if (bed.position.distanceTo(player.position) < 2) {
+      if (interactables.every(i => i.isSafe)) alert('Descansando… ¡Has ganado!');
+      else alert('Descansando… ¡Has perdido! Faltan objetos.');
     }
   }
 });
+window.addEventListener('keyup', e => {
+  if (keyState.hasOwnProperty(e.code)) keyState[e.code] = false;
+});
 
 ////////////////////////////////////////////////////////////////////////////////
-// 9) Animate
+// 9) Animation Loop
 ////////////////////////////////////////////////////////////////////////////////
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth/window.innerHeight;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(window.innerWidth,window.innerHeight);
 });
 
-function animate() {
+(function animate(){
   requestAnimationFrame(animate);
 
+  const delta = clock.getDelta();
+  if (playerMixer) playerMixer.update(delta);
+
+  // movement & collision
   playerControls.update();
 
-  // auto abrir/cerrar puertas
-  for (const { pivot, closedY, openY, zone } of doors) {
-    const coord = player.position[ zone.axis ];
-    const other = player.position[ zone.axis==='x'?'z':'x' ];
-    const inZone = Math.abs(coord - zone.threshold) < 1
-                && other >= zone.min && other <= zone.max;
-    pivot.rotation.y = inZone ? openY : closedY;
+  // Animate actions
+  const moving = keyState.KeyW||keyState.KeyA||keyState.KeyS||keyState.KeyD;
+  if (moving && walkAction) {
+    if (currentAction !== 'walk') {
+      walkAction.reset().fadeIn(0.2).play();
+      if (idleAction) idleAction.fadeOut(0.2);
+      currentAction = 'walk';
+    }
+  } else {
+    if (idleAction && currentAction !== 'idle') {
+      idleAction.reset().fadeIn(0.2).play();
+      if (walkAction) walkAction.fadeOut(0.2);
+      currentAction = 'idle';
+    }
   }
+
+  // Orient towards movement
+  if (moving) {
+    const dir = new THREE.Vector3().subVectors(player.position, lastPos);
+    dir.y = 0;
+    if (dir.length() > 0.0001) {
+      const lookTarget = new THREE.Vector3().addVectors(player.position, dir);
+      player.lookAt(lookTarget.x, player.position.y, lookTarget.z);
+    }
+  }
+  lastPos.copy(player.position);
+
+  // Auto open/close doors
+  doors.forEach(({pivot, closedY, openY, zone}) => {
+    const cx = player.position[zone.axis];
+    const cz = player.position[ zone.axis==='x'?'z':'x' ];
+    const inZone = Math.abs(cx - zone.threshold) < 1
+                && cz >= zone.min && cz <= zone.max;
+    pivot.rotation.y = inZone ? openY : closedY;
+  });
 
   controls.update();
   renderer.render(scene, camera);
-}
-animate();
+})();
