@@ -260,19 +260,30 @@ fbxLoader.load('models/maincharacter.fbx', char => {
   });
 });
 
-// 5.4) Colocar la cama en la recámara derecha
-const bed = new THREE.Mesh(
-  new THREE.BoxGeometry(6, 2, 4),
-  new THREE.MeshStandardMaterial({ color: 0x884422 })  // naranja “#884422”
-);
-bed.position.set(
-  offsetX + 5,   // pegada al muro este
-  0.5,           // medio metro de alto
-  0.2            // junto al muro norte
-);
-scene.add(bed);
-collidables.push(bed);     // Sólo colisiones, NO interactables
-//  ¡NO hacer interactables.push(bed) !
+// 5.4) Cargar modelo FBX de la cama
+let bed, bedObj;
+
+fbxLoader.load('models/bed.FBX', fb => {
+  // Ajusta escala según el tamaño real de tu FBX
+  fb.scale.set(0.0025, 0.0025, 0.0025);
+  // Colócala en la esquina de la recámara derecha
+  fb.position.set(offsetX + 3, 0.5, 0.2);
+  //Rotacion
+  fb.rotation.set(0, 2.2, 0);
+  scene.add(fb);
+
+  // Para que el jugador colisione con cada mesh dentro de la cama:
+  fb.traverse(child => {
+    if (child.isMesh) {
+      child.geometry.computeBoundingBox();
+      collidables.push(child);
+    }
+  });
+
+  // Guarda la referencia y envuélvela en Interactable,
+  // PERO NO la metas en el array `interactables`
+  bed = fb;
+});
 
 
 const playerControls = new PlayerControls(player, salaSize + roomW, collidables);
@@ -286,9 +297,9 @@ const centerY  = 1;
 
 const propConfigs = [
   { name:'Extintor', file:'models/extintor.fbx', pos:[sideWall,0.5,-4], dist:2.5, scale:0.005, rotation:[0,0,0] },
-  { name:'Radiator', file:'models/radiador.fbx', pos:[2,centerY,2],    dist:2.5, scale:1,     rotation:[0,0,0] },
   { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:5.0, scale:0.5,   rotation:[1.5,0,0] },
-  { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] }
+  { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
+  { name:'Radiator',   file:'models/radiador.FBX',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] }
 ];
 
 propConfigs.forEach(cfg => {
@@ -381,13 +392,33 @@ window.addEventListener('keydown', e => {
       }
     }
     // luego cama
-    if (player.position.distanceTo(bed.position) < 4 && restAction) {
-      idleAction.fadeOut(0.1);
-      walkAction.fadeOut(0.1);
-      interactAction.fadeOut(0.1);
-      restAction.reset().fadeIn(0.1).play();
-      currentAction = 'rest';
-    }
+  // 2) Lógica de la cama (rest)
+  if (
+    e.code === 'KeyE' &&
+    bed &&
+    player.position.distanceTo(bed.position) < 4 &&
+    restAction
+  ) {
+// 1) Calcula la posición “ideal” junto a la cama
+//    Ajusta offsetX/Y/Z según tu malla y cómo quieras que quede tumbado
+const restOffset = new THREE.Vector3(-1, 0, 0);  
+//    (esto lo deslizas un metro hacia “-X” desde el centro de la cama)
+
+const targetPos = new THREE.Vector3().copy(bed.position).add(restOffset);
+
+// 2) Mueve ahí al player y oriénta hacia la cama
+player.position.copy(targetPos);
+player.lookAt(bed.position.x, player.position.y, bed.position.z);
+player.rotateY(Math.PI);
+
+// 3) Y sólo **después** disparas la animación de rest
+idleAction.fadeOut(0.1);
+walkAction.fadeOut(0.1);
+interactAction.fadeOut(0.1);
+
+restAction.reset().fadeIn(0.1).play();
+currentAction = 'rest';
+  }
   }
 });
 window.addEventListener('keyup', e => {
