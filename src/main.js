@@ -299,9 +299,7 @@ const propConfigs = [
   { name:'Extintor', file:'models/extintor.fbx', pos:[sideWall,0.5,-4], dist:2.5, scale:0.005, rotation:[0,0,0] },
   { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:4, scale:0.5,   rotation:[1.5,0,0] },
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
-  { name:'Radiator',   file:'models/radiator.FBX',    pos:[-8,2,-14],    dist:2.5, scale:1,  rotation:[0,0,0] },
   { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
-  { name:'Mesa',   file:'models/mesa.fbx',    pos:[-1,-0.5,-10],    dist:4, scale:0.03,  rotation:[0,0,0] },
 ];
 
 propConfigs.forEach(cfg => {
@@ -431,8 +429,48 @@ window.addEventListener('keyup', e => {
   }
 });
 ////////////////////////////////////////////////////////////////////////////////
-// 9) Entorno: cargar FBX NO-interactuables
+// 9) Decor “no-interactuable” con color por defecto si no trae textura
 ////////////////////////////////////////////////////////////////////////////////
+const decorConfigs = [
+  { name:'Mesa', file:'models/mesa.fbx', position:[0,0,5], rotation:[0,Math.PI/2,0], scale:0.05, color:0x884422 },
+];
+
+decorConfigs.forEach(cfg => {
+  fbxLoader.load(cfg.file, model => {
+    // 1) Transformaciones
+    model.scale.set(cfg.scale, cfg.scale, cfg.scale);
+    model.rotation.set(...cfg.rotation);
+    model.position.set(...cfg.position);
+
+    // 2) Recorre las mallas internas
+    model.traverse(child => {
+      if (!child.isMesh) return;
+
+      // si trae textura, reaplica el map
+      if (child.material && child.material.map) {
+        child.material = new THREE.MeshStandardMaterial({
+          map:           child.material.map,
+          transparent:   child.material.transparent,
+          opacity:       child.material.opacity
+        });
+      } else {
+        // si no trae textura, usa el color de cfg
+        child.material = new THREE.MeshStandardMaterial({
+          color: cfg.color
+        });
+      }
+
+      // sombras y colisión
+      child.castShadow    = true;
+      child.receiveShadow = true;
+      child.geometry.computeBoundingBox();
+      collidables.push(child);
+    });
+
+    // 3) Añade a escena
+    scene.add(model);
+  });
+});
 
 ////////////////////////////////////////////////////////////////////////////////
 // 10) Animation Loop
