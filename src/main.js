@@ -297,9 +297,11 @@ const centerY  = 1;
 
 const propConfigs = [
   { name:'Extintor', file:'models/extintor.fbx', pos:[sideWall,0.5,-4], dist:2.5, scale:0.005, rotation:[0,0,0] },
-  { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:5.0, scale:0.5,   rotation:[1.5,0,0] },
+  { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:4, scale:0.5,   rotation:[1.5,0,0] },
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
-  { name:'Radiator',   file:'models/radiador.FBX',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] }
+  { name:'Radiator',   file:'models/radiator.FBX',    pos:[-8,2,-14],    dist:2.5, scale:1,  rotation:[0,0,0] },
+  { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
+  { name:'Mesa',   file:'models/mesa.fbx',    pos:[-1,-0.5,-10],    dist:4, scale:0.03,  rotation:[0,0,0] },
 ];
 
 propConfigs.forEach(cfg => {
@@ -428,9 +430,12 @@ window.addEventListener('keyup', e => {
     keyState[e.code] = false;
   }
 });
+////////////////////////////////////////////////////////////////////////////////
+// 9) Entorno: cargar FBX NO-interactuables
+////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
-// 9) Animation Loop
+// 10) Animation Loop
 ////////////////////////////////////////////////////////////////////////////////
 window.addEventListener('resize', ()=>{
   camera.aspect = window.innerWidth/window.innerHeight;
