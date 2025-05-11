@@ -261,7 +261,7 @@ const centerY  = 1;
 
 const propConfigs = [
   { name:  'Extintor',
-    file:  'models/extintor.fbx',
+    file:  './models/extintor.fbx',
     pos:   [ sideWall, 0.5, -4 ],
     dist:  2.5,
     scale: 0.005,
@@ -269,7 +269,7 @@ const propConfigs = [
   },
   {
     name:  'Radiator',
-    file:  'models/radiador.fbx',
+    file:  './models/radiador.fbx',
     pos:   [ 2, centerY, 2 ],
     dist:  2.5,
     scale: 1,
@@ -277,7 +277,7 @@ const propConfigs = [
   },
   {
     name:  'Switch',
-    file:  'models/switch.fbx',
+    file:  './models/switch.fbx',
     pos:   [ 8, 4, -15 ],
     dist:  5.0,
     scale: 0.5,
@@ -285,7 +285,7 @@ const propConfigs = [
   },
   {
     name:  'Window',
-    file:  'models/window.fbx',
+    file:  './models/window.fbx',
     pos:   [ -8, 2, -14],
     dist:  2.5,
     scale: 0.03,
