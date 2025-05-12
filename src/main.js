@@ -298,6 +298,7 @@ const centerY  = 1;
 const propConfigs = [
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
   { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
+  { name:'Cuchilo',   file:'models/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
 ];
 
 propConfigs.forEach(cfg => {
