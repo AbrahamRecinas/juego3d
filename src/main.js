@@ -431,10 +431,13 @@ window.addEventListener('keyup', e => {
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
   { name:'Mesa', file:'models/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
+  { name:'MusicColumn', file:'models/MusicColumn.fbx', position:[8,2,9], rotation:[0,0,0], scale:0.005, color:0x818d8c },
+  { name:'Guitar', file:'models/guitar.fbx', position:[offsetX + 5,1.5,5], rotation:[0,3,0], scale:0.008, color:0x6e3a00 }
 ];
 
 decorConfigs.forEach(cfg => {
   fbxLoader.load(cfg.file, model => {
+
     // 1) Transformaciones
     model.scale.set(cfg.scale, cfg.scale, cfg.scale);
     model.rotation.set(...cfg.rotation);
@@ -444,19 +447,20 @@ decorConfigs.forEach(cfg => {
     model.traverse(child => {
       if (!child.isMesh) return;
 
-      // si trae textura, reaplica el map
-      if (child.material && child.material.map) {
-        child.material = new THREE.MeshStandardMaterial({
-          map:           child.material.map,
-          transparent:   child.material.transparent,
-          opacity:       child.material.opacity
-        });
+      // Prepara las opciones del material
+      const matOpts = {};
+      if (!Array.isArray(child.material) && child.material.map) {
+        matOpts.map         = child.material.map;
+        matOpts.transparent = child.material.transparent;
+        matOpts.opacity     = child.material.opacity;
       } else {
-        // si no trae textura, usa el color de cfg
-        child.material = new THREE.MeshStandardMaterial({
-          color: cfg.color
-        });
+        matOpts.color = cfg.color;
       }
+
+      // Crea el material y fuerza su actualización
+      const mat = new THREE.MeshStandardMaterial(matOpts);
+      mat.needsUpdate = true;      // ← ¡Muy importante!
+      child.material = mat;
 
       // sombras y colisión
       child.castShadow    = true;
@@ -465,10 +469,12 @@ decorConfigs.forEach(cfg => {
       collidables.push(child);
     });
 
-    // 3) Añade a escena
+    // 3) Añade a escena y pre-compila shaders
     scene.add(model);
+    renderer.compile(scene, camera);  // ← opcional, pero muy útil
   });
 });
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // 10) Animation Loop
