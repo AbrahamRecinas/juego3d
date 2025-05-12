@@ -296,8 +296,6 @@ const sideWall = salaSize/2 - 0.5;
 const centerY  = 1;
 
 const propConfigs = [
-  { name:'Extintor', file:'models/extintor.fbx', pos:[sideWall,0.5,-4], dist:2.5, scale:0.005, rotation:[0,0,0] },
-  { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:4, scale:0.5,   rotation:[1.5,0,0] },
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
   { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
 ];
@@ -432,7 +430,8 @@ window.addEventListener('keyup', e => {
 // 9) Decor “no-interactuable” con color por defecto si no trae textura
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
-  { name:'Mesa', file:'models/mesa.fbx', position:[0,0,5], rotation:[0,Math.PI/2,0], scale:0.05, color:0x884422 },
+  { name:'Mesa', file:'models/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
+  { name:'Karpet', file:'models/karpet.fbx', position:[0,0.5,0], rotation:[0,0,0], scale:0.1, color:0x7a5322 },
 ];
 
 decorConfigs.forEach(cfg => {
