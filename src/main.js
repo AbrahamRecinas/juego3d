@@ -431,7 +431,6 @@ window.addEventListener('keyup', e => {
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
   { name:'Mesa', file:'models/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
-  { name:'Karpet', file:'models/karpet.fbx', position:[0,0.5,0], rotation:[0,0,0], scale:0.1, color:0x7a5322 },
 ];
 
 decorConfigs.forEach(cfg => {
