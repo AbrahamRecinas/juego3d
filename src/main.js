@@ -297,33 +297,53 @@ const centerY  = 1;
 
 const propConfigs = [
   { name:'Extintor', file:'models/extintor.fbx', pos:[sideWall,0.5,-4], dist:2.5, scale:0.005, rotation:[0,0,0] },
-  { name:'Switch',   file:'models/switch.fbx',    pos:[8,4,-15],       dist:4, scale:0.5,   rotation:[1.5,0,0] },
-  { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
-  { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
+  { name:'Switch',   file:'models/switch.fbx',    pos:[  8,4,-15],     dist:4,   scale:0.5,   rotation:[1.5,0,0] },
+  { name:'Window',   file:'models/window.fbx',    pos:[ -8,2,-14],     dist:2.5, scale:0.03,  rotation:[0,0,0] },
+  { name:'Puerta',   file:'models/door.fbx',      pos:[ -1,-0.5,-15],  dist:3,   scale:0.03,  rotation:[0,0,0] },
 ];
 
 propConfigs.forEach(cfg => {
   fbxLoader.load(cfg.file, model => {
+    // 1) Transformaciones generales
     model.scale.set(cfg.scale, cfg.scale, cfg.scale);
     model.rotation.set(...cfg.rotation);
     model.position.fromArray(cfg.pos);
 
+    // 2) Recorre cada mesh interno
     model.traverse(child => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        child.geometry.computeBoundingBox();
-        collidables.push(child);
+      if (!child.isMesh) return;
+
+      // 2a) Si trae textura, la conserva
+      if (child.material && child.material.map) {
+        child.material = new THREE.MeshStandardMaterial({
+          map:           child.material.map,
+          transparent:   child.material.transparent,
+          opacity:       child.material.opacity
+        });
+      } else {
+        // 2b) Si no trae textura, usa blanco de respaldo
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xffffff
+        });
       }
+
+      // 3) Sombras y colisión
+      child.castShadow    = true;
+      child.receiveShadow = true;
+      child.geometry.computeBoundingBox();
+      collidables.push(child);
     });
 
+    // 4) Añade a la escena
     scene.add(model);
 
+    // 5) Crea el interactuable
     const obj = new Interactable(model, cfg.name);
     Math.random() < 0.5 ? obj.markSafe() : obj.markUnsafe();
     obj.interactDist = cfg.dist;
     interactables.push(obj);
 
+    // 6) Actualiza HUD
     updateHUD();
   });
 });
@@ -432,7 +452,7 @@ window.addEventListener('keyup', e => {
 // 9) Decor “no-interactuable” con color por defecto si no trae textura
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
-  { name:'Mesa', file:'models/mesa.fbx', position:[0,0,5], rotation:[0,Math.PI/2,0], scale:0.05, color:0x884422 },
+  { name:'Mesa', file:'models/mesa.FBX', position:[0,0,5], rotation:[0,Math.PI/2,0], scale:0.05, color:0x884422 },
 ];
 
 decorConfigs.forEach(cfg => {
