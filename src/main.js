@@ -10,14 +10,9 @@ import { Interactable }               from './interactables.js';
 // Globals & Constants
 ////////////////////////////////////////////////////////////////////////////////
 const scene         = new THREE.Scene();
-const camera        = new THREE.PerspectiveCamera(
-  50,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  200
-);
-const renderer      = new THREE.WebGLRenderer({ antialias: true });
-const controls      = new OrbitControls(camera, renderer.domElement);
+scene.fog = new THREE.FogExp2(0xcccccc, 0.0001);  // color y densidad
+scene.background = new THREE.Color(0xcccccc);   // para que combine
+
 const collidables   = [];    // walls, props, bed
 const interactables = [];    // only props for HUD
 const doors         = [];    // door pivots
@@ -36,6 +31,7 @@ const lastPos  = new THREE.Vector3();
 const salaSize   = 30, wallHeight = 10;
 const roomW      = 15, roomD      = 15, roomH = 6;
 const doorWidth  = 4,  doorHeight = 6;
+const offsetX    = salaSize/2 + roomW/2;  // Desplazamiento lateral
 
 // Materials
 const floorMat     = new THREE.MeshStandardMaterial({ color: 0x888888 });
@@ -51,21 +47,56 @@ const bedMat       = new THREE.MeshStandardMaterial({ color: 0x884422 });
 ////////////////////////////////////////////////////////////////////////////////
 // 1) Renderer & Camera
 ////////////////////////////////////////////////////////////////////////////////
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
+const camera = new THREE.PerspectiveCamera(
+  50,
+  window.innerWidth/window.innerHeight,
+  0.1,
+  200
+);
 camera.position.set(0, 30, 30);
 camera.lookAt(0, 0, 0);
 
+const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping   = true;
 controls.dampingFactor   = 0.05;
 controls.enableZoom      = false;
 controls.enablePan       = false;
-controls.minPolarAngle   = Math.PI / 4;
-controls.maxPolarAngle   = Math.PI / 4;
+controls.minPolarAngle   = Math.PI/4;
+controls.maxPolarAngle   = Math.PI/4;
 controls.minAzimuthAngle = -Infinity;
 controls.maxAzimuthAngle = +Infinity;
+// Bloquear rotación manual
+controls.enableRotate = false;
+
+////////////////////////////////////////////////////////////////////////////////
+// 1.1) Cámara: zonas y switching
+////////////////////////////////////////////////////////////////////////////////
+const centers = {
+  main: new THREE.Vector3(  0, 0,  0),
+  bath: new THREE.Vector3(-offsetX, 0,  0),
+  bed:  new THREE.Vector3(+offsetX, 0,  0)
+};
+const camHeight = 30, camDepth = 30;
+const camPositions = {
+  main: new THREE.Vector3(   0, camHeight, camDepth),
+  bath: new THREE.Vector3(-offsetX, camHeight, camDepth),
+  bed:  new THREE.Vector3(+offsetX, camHeight, camDepth)
+};
+let currentZone = 'main';
+function switchCamera(zone) {
+  camera.position.copy(camPositions[zone]);
+  camera.lookAt(centers[zone]);
+  controls.target.copy(centers[zone]);
+  controls.update();
+}
+// Inicializar en zona principal
+switchCamera('main');
+
 
 ////////////////////////////////////////////////////////////////////////////////
 // 2) Lighting
@@ -190,7 +221,6 @@ createHorizontalWall(-salaSize/2);
 createHorizontalWall(+salaSize/2, Math.PI);
 createVerticalWallWithDoor(-salaSize/2,  Math.PI/2, +2);
 createVerticalWallWithDoor(+salaSize/2, -Math.PI/2, -2);
-const offsetX = salaSize/2 + roomW/2;
 createRoom(-offsetX);
 createRoom(+offsetX);
 
@@ -299,6 +329,7 @@ const propConfigs = [
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
   { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
   { name:'Cuchilo',   file:'models/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
+  { name:'TV',   file:'models/TV_fbx.fbx',    pos:[8,2,9],    dist:10, scale:0.03,  rotation:[0,1.5,0] }
 ];
 
 propConfigs.forEach(cfg => {
@@ -477,6 +508,32 @@ decorConfigs.forEach(cfg => {
 });
 
 
+
+// 11) Lluvia
+const rainCount = 10000;
+const rainGeometry = new THREE.BufferGeometry();
+const rainPositions = [];
+
+for (let i = 0; i < rainCount; i++) {
+  rainPositions.push(
+    (Math.random() - 0.5) * 200,
+    Math.random() * 100,
+    (Math.random() - 0.5) * 200
+  );
+}
+
+rainGeometry.setAttribute('position', new THREE.Float32BufferAttribute(rainPositions, 3));
+
+const rainMaterial = new THREE.PointsMaterial({
+  color: 0x1300ff,
+  size: 0.1,
+  transparent: true,
+  opacity: 0.6
+});
+
+const rain = new THREE.Points(rainGeometry, rainMaterial);
+scene.add(rain);
+
 ////////////////////////////////////////////////////////////////////////////////
 // 10) Animation Loop
 ////////////////////////////////////////////////////////////////////////////////
@@ -531,5 +588,22 @@ window.addEventListener('resize', ()=>{
     pivot.rotation.y = inZone ? openY : closedY;
   });
 
+    // cambio de cámara por zona
+  let newZone = 'main';
+  const x = player.position.x;
+  if(x < -offsetX + roomW/2)      newZone = 'bath';
+  else if(x >  offsetX - roomW/2) newZone = 'bed';
+  if(newZone!==currentZone){
+    switchCamera(newZone);
+    currentZone = newZone;
+  }
+  
+  // animar lluvia
+  const pos = rainGeometry.attributes.position.array;
+  for (let i = 1; i < pos.length; i += 3) {
+    pos[i] -= 1; // velocidad de caída
+    if (pos[i] < 0) pos[i] = 100;
+  }
+  rainGeometry.attributes.position.needsUpdate = true;
   renderer.render(scene,camera);
 })();
