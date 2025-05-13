@@ -5,13 +5,13 @@ import { FBXLoader }                  from 'https://cdn.jsdelivr.net/npm/three@0
 import { AnimationMixer, LoopRepeat, AnimationClip } from 'three';
 import { PlayerControls }             from './controls.js';
 import { Interactable }               from './interactables.js';
+import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/loaders/RGBELoader.js';
 
 ////////////////////////////////////////////////////////////////////////////////
 // Globals & Constants
 ////////////////////////////////////////////////////////////////////////////////
 const scene         = new THREE.Scene();
-scene.fog = new THREE.FogExp2(0xcccccc, 0.0001);  // color y densidad
-scene.background = new THREE.Color(0xcccccc);   // para que combine
+scene.fog = new THREE.FogExp2(0xcccccc, 0.015);  // color y densidad
 
 const collidables   = [];    // walls, props, bed
 const interactables = [];    // only props for HUD
@@ -96,6 +96,41 @@ function switchCamera(zone) {
 }
 // Inicializar en zona principal
 switchCamera('main');
+////////////////////////////////////////////////////////////////////////////////
+// Entorno HDR
+////////////////////////////////////////////////////////////////////////////////
+// 1. Renderer
+renderer.setSize(window.innerWidth, window.innerHeight);
+// ——— Configuración de renderer para PBR y HDR ———
+renderer.physicallyCorrectLights = true;
+renderer.toneMapping          = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.3;
+renderer.outputEncoding      = THREE.sRGBEncoding;
+
+// ——— PMREMGenerator ———
+const pmremGenerator = new THREE.PMREMGenerator(renderer);
+pmremGenerator.compileEquirectangularShader();
+
+// ——— Carga y aplica tu archivo .hdr ———
+new RGBELoader()
+  .setDataType(THREE.HalfFloatType)              // usa HalfFloat para rango dinámico
+  .load(
+    'models/vignaioli_night_4k.hdr',                // ← AJUSTA esta ruta
+    hdrEquirectTexture => {
+      // Genera el cubemap optimizado
+      const envMap = pmremGenerator.fromEquirectangular(hdrEquirectTexture).texture;
+      
+      // Asigna como fondo e iluminación
+      scene.background  = envMap;
+      scene.environment = envMap;
+      
+      // Limpia
+      hdrEquirectTexture.dispose();
+      pmremGenerator.dispose();
+    },
+    undefined,
+    err => console.error('Error cargando HDR:', err)
+  );
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,7 +632,7 @@ window.addEventListener('resize', ()=>{
     switchCamera(newZone);
     currentZone = newZone;
   }
-  
+
   // animar lluvia
   const pos = rainGeometry.attributes.position.array;
   for (let i = 1; i < pos.length; i += 3) {
