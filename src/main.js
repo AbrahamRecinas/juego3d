@@ -71,7 +71,7 @@ controls.maxPolarAngle   = Math.PI/4;
 controls.minAzimuthAngle = -Infinity;
 controls.maxAzimuthAngle = +Infinity;
 // Bloquear rotación manual
-controls.enableRotate = false;
+controls.enableRotate = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 // 1.1) Cámara: zonas y switching
@@ -115,7 +115,7 @@ pmremGenerator.compileEquirectangularShader();
 new RGBELoader()
   .setDataType(THREE.HalfFloatType)              // usa HalfFloat para rango dinámico
   .load(
-    'models/vignaioli_night_4k.hdr',                // ← AJUSTA esta ruta
+    'models/voortrekker_interior_4k.hdr',                // ← AJUSTA esta ruta
     hdrEquirectTexture => {
       // Genera el cubemap optimizado
       const envMap = pmremGenerator.fromEquirectangular(hdrEquirectTexture).texture;
@@ -364,7 +364,8 @@ const propConfigs = [
   { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
   { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
   { name:'Cuchilo',   file:'models/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
-  { name:'TV',   file:'models/TV_fbx.fbx',    pos:[8,2,9],    dist:10, scale:0.03,  rotation:[0,1.5,0] }
+  { name:'TV',   file:'models/TV_fbx.fbx',    pos:[9,0.5,12],    dist:2.5, scale:0.025,  rotation:[0,3.1,0] },
+  { name:'Lavabo',   file:'models/sink.fbx',    pos:[+offsetX - 50, 3, 0.2],    dist:5, scale:0.025,  rotation:[0,1.6,0] }
 ];
 
 propConfigs.forEach(cfg => {
@@ -498,8 +499,13 @@ window.addEventListener('keyup', e => {
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
   { name:'Mesa', file:'models/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
-  { name:'MusicColumn', file:'models/MusicColumn.fbx', position:[8,2,9], rotation:[0,0,0], scale:0.005, color:0x818d8c },
-  { name:'Guitar', file:'models/guitar.fbx', position:[offsetX + 5,1.5,5], rotation:[0,3,0], scale:0.008, color:0x6e3a00 }
+  { name:'Guitar', file:'models/guitar.fbx', position:[offsetX + 5,1.5,5], rotation:[0,3,1], scale:0.008, color:0x251101 },
+  { name:'Bocina1', file:'models/MusicColumn.fbx', position:[6,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
+  { name:'Bocina2', file:'models/MusicColumn.fbx', position:[12,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
+  { name:'Sofa', file:'models/Couch.fbx', position:[-8,0,-9], rotation:[0,0,0], scale:0.03, color:0x000000 },
+  { name:'Mueble', file:'models/modern_cabinet_hutch.fbx', position:[9,0,-13], rotation:[0,3.1,0], scale:0.04, color:0x956a46 },
+  { name:'Lavadora', file:'models/washing_machine.fbx', position:[+offsetX - 45, 3, -6], rotation:[0,6.255,0], scale:0.005, color:0xFFFFFF },
+  { name:'Mueble2', file:'models/Arverne Hall Tree.fbx', position:[offsetX + 5, 3, -6.5], rotation:[0,-1.56,0], scale:0.035, color:0x83420c }
 ];
 
 decorConfigs.forEach(cfg => {
