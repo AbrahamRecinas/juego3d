@@ -395,8 +395,10 @@ propConfigs.forEach(cfg => {
 });
 
 ////////////////////////////////////////////////////////////////////////////////
-// 7) HUD + Restart
+// 7) HUD + Restart + Controles + Plantilla de nombres
 ////////////////////////////////////////////////////////////////////////////////
+
+// ——— HUD de interactuables ———
 const hud = document.createElement('div');
 hud.style = `
   position:absolute; top:10px; right:10px;
@@ -404,6 +406,7 @@ hud.style = `
   padding:8px; font-family:Arial; z-index:100;
 `;
 document.body.appendChild(hud);
+
 function updateHUD(){
   let html = '<b>Interactuables:</b><br>';
   interactables.forEach(i=>{
@@ -420,18 +423,57 @@ function updateHUD(){
   </div>`;
   hud.innerHTML = html;
 }
-// initial call (in case any load was instant)
+// llamada inicial
 updateHUD();
 
+// ——— Botón Reiniciar ———
 const btn = document.createElement('button');
 btn.textContent = 'Reiniciar';
 Object.assign(btn.style,{
-  position:'absolute', bottom:'20px', left:'50%',
-  transform:'translateX(-50%)', padding:'8px 16px',
-  cursor:'pointer', zIndex:100
+  position:'absolute',
+  bottom:'20px',
+  left:'50%',
+  transform:'translateX(-50%)',
+  padding:'8px 16px',
+  cursor:'pointer',
+  zIndex:100
 });
 btn.addEventListener('click', ()=> location.reload());
 document.body.appendChild(btn);
+
+// ——— Panel de controles (esquina superior izquierda) ———
+const controlsBox = document.createElement('div');
+controlsBox.style = `
+  position:absolute; top:10px; left:10px;
+  background:rgba(0,0,0,0.6); color:#fff;
+  padding:8px; font-family:Arial; z-index:100;
+`;
+controlsBox.innerHTML = `
+  WASD Para Moverse<br>
+  E Para Interactuar<br>
+  Asegura Todos los Objetos Antes De Descansar
+`;
+document.body.appendChild(controlsBox);
+
+// ——— Plantilla de nombres (esquina inferior izquierda) ———
+const nameTemplate = document.createElement('div');
+nameTemplate.style = `
+  position:absolute; bottom:10px; left:10px;
+  width:200px; height:60px;
+  border:2px dashed #fff;
+  background:rgba(0,0,0,0.6); color:#fff;
+  padding:8px; font-family:Arial; z-index:100;
+  display:flex; flex-direction:column; justify-content:center;
+`;
+nameTemplate.innerHTML = `
+  <label style="font-weight:bold; margin-bottom:4px;">Nombre:</label>
+  <div>— Nombre 1</div>
+  <div>— Nombre 2</div>
+  <div>— Nombre 3</div>
+  <div style="flex:1; border:1px solid #888; border-radius:4px;"></div>
+  
+`;
+document.body.appendChild(nameTemplate);
 
 ////////////////////////////////////////////////////////////////////////////////
 // 8) Input Handling
