@@ -41,6 +41,13 @@ let playerMixer,
     restAction;
 let currentAction = 'idle';
 
+// Para interpolar la cámara durante 'rest'
+let resting = false;
+let restCameraStart = new THREE.Vector3();
+let restCameraEnd   = new THREE.Vector3();
+let restCameraTime  = 0;
+const restCameraDuration = 2.0; // segundos de transición
+
 const keyState = { KeyW: false, KeyA: false, KeyS: false, KeyD: false };
 const lastPos  = new THREE.Vector3();
 
@@ -391,7 +398,7 @@ const sideWall = salaSize/2 - 0.5;
 const centerY  = 1;
 
 const propConfigs = [
-  { name:'Window',   file:'recursos/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
+  { name:'Ventana',   file:'recursos/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
   { name:'Puerta',   file:'recursos/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
   { name:'Cuchilo',   file:'recursos/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
   { name:'TV',   file:'recursos/TV_fbx.fbx',    pos:[9,0.5,12],    dist:2.5, scale:0.025,  rotation:[0,3.1,0] },
@@ -496,7 +503,7 @@ nameTemplate.style = `
   display:flex; flex-direction:column; justify-content:center;
 `;
 nameTemplate.innerHTML = `
-  <label style="font-weight:bold; margin-bottom:4px;">Nombre:</label>
+  <label style="font-weight:bold; margin-bottom:4px;">Nombres:</label>
   <div>— Falcon Recinas Abraham 22200727</div>
   <div>— Rojas Trejo Erick Alejandro 22200978</div>
   <div>— Roberto Olvera Perez 22200965</div>
@@ -562,6 +569,22 @@ interactAction.fadeOut(0.1);
 
 restAction.reset().fadeIn(0.1).play();
 currentAction = 'rest';
+// Iniciar vuelo de cámara hacia la cama:
+resting = true;
+restCameraTime = 0;
+
+// Punto de partida = posición actual de la cámara
+restCameraStart.copy(camera.position);
+
+// Punto final = cama + offset (arriba y un poco atrás)
+restCameraEnd.set(
+  bed.position.x,
+  bed.position.y + 10,   // 10 unidades por encima
+  bed.position.z + 10    // 10 unidades hacia Z+
+);
+
+// Asegura que el control apunte al centro de la cama
+controls.target.copy(bed.position);
   }
   }
 });
@@ -667,6 +690,18 @@ window.addEventListener('resize', ()=>{
   const delta = clock.getDelta();
   if (playerMixer) playerMixer.update(delta);
 
+  if (resting) {
+  restCameraTime += delta;
+  const t = Math.min(restCameraTime / restCameraDuration, 1);
+  // easing smooth (easeInOut)
+  const smoothT = t * t * (3 - 2 * t);
+
+  camera.position.lerpVectors(restCameraStart, restCameraEnd, smoothT);
+  camera.lookAt(bed.position.x, bed.position.y, bed.position.z);
+
+  if (t >= 1) resting = false;
+}
+
   if (currentAction!=='interact' && currentAction!=='rest') {
     playerControls.update();
     controls.update();
@@ -714,7 +749,7 @@ window.addEventListener('resize', ()=>{
   else if(x >  offsetX - roomW/2) newZone = 'bed';
   if(newZone!==currentZone){
     switchCamera(newZone);
-    currentZone = newZone;
+   currentZone = newZone;
   }
 
   // animar lluvia
