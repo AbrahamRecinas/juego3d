@@ -7,9 +7,25 @@ import { PlayerControls }             from './controls.js';
 import { Interactable }               from './interactables.js';
 import { RGBELoader } from 'https://cdn.jsdelivr.net/npm/three@0.150.1/examples/jsm/loaders/RGBELoader.js';
 
+
 ////////////////////////////////////////////////////////////////////////////////
 // Globals & Constants
 ////////////////////////////////////////////////////////////////////////////////
+
+// ─── Declara el loader de texturas ─────────────────────────
+const textureLoader = new THREE.TextureLoader();
+
+// Sonido
+const interactSound = new Audio('recursos/interact.mp3');
+interactSound.volume = 0.5; 
+const Win = new Audio('recursos/ganar.mp3');
+interactSound.volume = 0.5; 
+const Lose = new Audio('recursos/perder.mp3');
+interactSound.volume = 0.3; 
+const Muerto = new Audio('recursos/muerto.mp3');
+interactSound.volume = 0.5; 
+
+
 const scene         = new THREE.Scene();
 scene.fog = new THREE.FogExp2(0xcccccc, 0.015);  // color y densidad
 
@@ -34,10 +50,20 @@ const doorWidth  = 4,  doorHeight = 6;
 const offsetX    = salaSize/2 + roomW/2;  // Desplazamiento lateral
 
 // Materials
-const floorMat     = new THREE.MeshStandardMaterial({ color: 0x888888 });
-const wallMat      = new THREE.MeshStandardMaterial({ color: 0x444455 });
+// piso texturado
+const floorTexture = textureLoader.load('recursos/floor.jpg');
+floorTexture.wrapS = floorTexture.wrapT = THREE.RepeatWrapping;
+floorTexture.repeat.set(4, 4);
+const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture, aoMap: floorTexture, aoMapIntensity: 0.5 });
+
+// paredes texturadas
+const wallTexture = textureLoader.load('recursos/wall.jpg');
+wallTexture.wrapS = wallTexture.wrapT = THREE.RepeatWrapping;
+wallTexture.repeat.set(2, 1);
+const wallMat = new THREE.MeshStandardMaterial({ map: wallTexture, displacementMap: wallTexture, displacementScale: 0.02 });
+
 const roomWallMat  = new THREE.MeshStandardMaterial({
-  color: 0x555566,
+  color: 0xffe990,
   side: THREE.DoubleSide
 });
 const roomFloorMat = new THREE.MeshStandardMaterial({ color: 0x777777 });
@@ -115,7 +141,7 @@ pmremGenerator.compileEquirectangularShader();
 new RGBELoader()
   .setDataType(THREE.HalfFloatType)              // usa HalfFloat para rango dinámico
   .load(
-    'models/voortrekker_interior_4k.hdr',                // ← AJUSTA esta ruta
+    'recursos/voortrekker_interior_4k.hdr',                // ← AJUSTA esta ruta
     hdrEquirectTexture => {
       // Genera el cubemap optimizado
       const envMap = pmremGenerator.fromEquirectangular(hdrEquirectTexture).texture;
@@ -221,7 +247,7 @@ function createRoom(x) {
   // floor
   const rf = new THREE.Mesh(
     new THREE.PlaneGeometry(roomW, roomD),
-    roomFloorMat.clone()
+    floorMat.clone()
   );
   rf.rotation.x = -Math.PI / 2;
   rf.position.set(x, 0, 0);
@@ -267,20 +293,20 @@ let player = new THREE.Object3D();
 player.position.set(0,0.5,0);
 scene.add(player);
 
-fbxLoader.load('models/maincharacter.fbx', char => {
+fbxLoader.load('recursos/maincharacter.fbx', char => {
   char.scale.set(0.03, 0.03, 0.03);
   player.add(char);
   playerMixer = new AnimationMixer(char);
 
   // idle
-  fbxLoader.load('models/idle.fbx', idleFbx => {
+  fbxLoader.load('recursos/idle.fbx', idleFbx => {
     idleAction = playerMixer.clipAction(idleFbx.animations[0]);
     idleAction.setLoop(LoopRepeat);
     idleAction.play();
   });
 
   // walk
-  fbxLoader.load('models/walk.fbx', walkFbx => {
+  fbxLoader.load('recursos/walk.fbx', walkFbx => {
     const raw = walkFbx.animations[0];
     const walkClip = AnimationClip.parse(AnimationClip.toJSON(raw));
     walkClip.tracks = walkClip.tracks.filter(t => !t.name.endsWith('.position'));
@@ -289,14 +315,14 @@ fbxLoader.load('models/maincharacter.fbx', char => {
   });
 
   // interact
-  fbxLoader.load('models/interact.fbx', interFbx => {
+  fbxLoader.load('recursos/interact.fbx', interFbx => {
     interactAction = playerMixer.clipAction(interFbx.animations[0]);
     interactAction.setLoop(THREE.LoopOnce, 1);
     interactAction.clampWhenFinished = true;
   });
 
   // rest
-  fbxLoader.load('models/rest.fbx', restFbx => {
+  fbxLoader.load('recursos/rest.fbx', restFbx => {
     restAction = playerMixer.clipAction(restFbx.animations[0]);
     restAction.setLoop(THREE.LoopOnce, 1);
     restAction.clampWhenFinished = true;
@@ -318,8 +344,12 @@ fbxLoader.load('models/maincharacter.fbx', char => {
     if (e.action === restAction) {
       if (interactables.every(i => i.isSafe)) {
         alert('Descansando… ¡Has ganado!');
+        Win.currentTime = 0;  // reinicia al inicio
+        Win.play();
       } else {
         alert('Descansando… ¡Has perdido! Faltan objetos.');
+        Muerto.currentTime = 0;  // reinicia al inicio
+        Muerto.play();
       }
     }
   });
@@ -328,7 +358,7 @@ fbxLoader.load('models/maincharacter.fbx', char => {
 // 5.4) Cargar modelo FBX de la cama
 let bed, bedObj;
 
-fbxLoader.load('models/bed.FBX', fb => {
+fbxLoader.load('recursos/bed.FBX', fb => {
   // Ajusta escala según el tamaño real de tu FBX
   fb.scale.set(0.0025, 0.0025, 0.0025);
   // Colócala en la esquina de la recámara derecha
@@ -361,11 +391,11 @@ const sideWall = salaSize/2 - 0.5;
 const centerY  = 1;
 
 const propConfigs = [
-  { name:'Window',   file:'models/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
-  { name:'Puerta',   file:'models/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
-  { name:'Cuchilo',   file:'models/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
-  { name:'TV',   file:'models/TV_fbx.fbx',    pos:[9,0.5,12],    dist:2.5, scale:0.025,  rotation:[0,3.1,0] },
-  { name:'Lavabo',   file:'models/sink.fbx',    pos:[+offsetX - 50, 3, 0.2],    dist:5, scale:0.025,  rotation:[0,1.6,0] }
+  { name:'Window',   file:'recursos/window.fbx',    pos:[-8,2,-14],    dist:2.5, scale:0.03,  rotation:[0,0,0] },
+  { name:'Puerta',   file:'recursos/door.fbx',    pos:[-1,-0.5,-15],    dist:3, scale:0.03,  rotation:[0,0,0] },
+  { name:'Cuchilo',   file:'recursos/Knife.fbx',    pos:[-8,5,9],    dist:10, scale:0.1,  rotation:[0,0,0] },
+  { name:'TV',   file:'recursos/TV_fbx.fbx',    pos:[9,0.5,12],    dist:2.5, scale:0.025,  rotation:[0,3.1,0] },
+  { name:'Lavabo',   file:'recursos/sink.fbx',    pos:[+offsetX - 50, 3, 0.2],    dist:5, scale:0.025,  rotation:[0,1.6,0] }
 ];
 
 propConfigs.forEach(cfg => {
@@ -459,7 +489,7 @@ document.body.appendChild(controlsBox);
 const nameTemplate = document.createElement('div');
 nameTemplate.style = `
   position:absolute; bottom:10px; left:10px;
-  width:200px; height:60px;
+  width:400px; height:80px;
   border:2px dashed #fff;
   background:rgba(0,0,0,0.6); color:#fff;
   padding:8px; font-family:Arial; z-index:100;
@@ -467,10 +497,10 @@ nameTemplate.style = `
 `;
 nameTemplate.innerHTML = `
   <label style="font-weight:bold; margin-bottom:4px;">Nombre:</label>
-  <div>— Nombre 1</div>
-  <div>— Nombre 2</div>
-  <div>— Nombre 3</div>
-  <div style="flex:1; border:1px solid #888; border-radius:4px;"></div>
+  <div>— Falcon Recinas Abraham 22200727</div>
+  <div>— Rojas Trejo Erick Alejandro 22200978</div>
+  <div>— Roberto Olvera Perez 22200965</div>
+  <div style="flex:1; border:2px solid #888; border-radius:4px;"></div>
   
 `;
 document.body.appendChild(nameTemplate);
@@ -480,8 +510,10 @@ document.body.appendChild(nameTemplate);
 ////////////////////////////////////////////////////////////////////////////////
 window.addEventListener('keydown', e => {
   // bloquea movimiento si interact/rest
-  if ((currentAction==='interact' || currentAction==='rest') &&
-      ['KeyW','KeyA','KeyS','KeyD'].includes(e.code)) return;
+  if (currentAction === 'interact' || currentAction === 'rest') {
+    e.preventDefault();
+    return;
+  }
   if (keyState.hasOwnProperty(e.code)) keyState[e.code] = true;
 
   if (e.code === 'KeyE') {
@@ -491,6 +523,8 @@ window.addEventListener('keydown', e => {
         obj.toggleSafe();
         updateHUD();
         if (interactAction) {
+          interactSound.currentTime = 0;  // reinicia al inicio
+          interactSound.play();
           idleAction.fadeOut(0.1);
           walkAction.fadeOut(0.1);
           interactAction.reset().fadeIn(0.1).play();
@@ -523,6 +557,8 @@ player.rotateY(Math.PI);
 idleAction.fadeOut(0.1);
 walkAction.fadeOut(0.1);
 interactAction.fadeOut(0.1);
+          interactSound.currentTime = 0;  // reinicia al inicio
+          interactSound.play();
 
 restAction.reset().fadeIn(0.1).play();
 currentAction = 'rest';
@@ -540,14 +576,14 @@ window.addEventListener('keyup', e => {
 // 9) Decor “no-interactuable” con color por defecto si no trae textura
 ////////////////////////////////////////////////////////////////////////////////
 const decorConfigs = [
-  { name:'Mesa', file:'models/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
-  { name:'Guitar', file:'models/guitar.fbx', position:[offsetX + 5,1.5,5], rotation:[0,3,1], scale:0.008, color:0x251101 },
-  { name:'Bocina1', file:'models/MusicColumn.fbx', position:[6,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
-  { name:'Bocina2', file:'models/MusicColumn.fbx', position:[12,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
-  { name:'Sofa', file:'models/Couch.fbx', position:[-8,0,-9], rotation:[0,0,0], scale:0.03, color:0x000000 },
-  { name:'Mueble', file:'models/modern_cabinet_hutch.fbx', position:[9,0,-13], rotation:[0,3.1,0], scale:0.04, color:0x956a46 },
-  { name:'Lavadora', file:'models/washing_machine.fbx', position:[+offsetX - 45, 3, -6], rotation:[0,6.255,0], scale:0.005, color:0xFFFFFF },
-  { name:'Mueble2', file:'models/Arverne Hall Tree.fbx', position:[offsetX + 5, 3, -6.5], rotation:[0,-1.56,0], scale:0.035, color:0x83420c }
+  { name:'Mesa', file:'recursos/mesa.fbx', position:[-8,0,9], rotation:[0,0,0], scale:0.05, color:0x4A2A00 },
+  { name:'Guitar', file:'recursos/guitar.fbx', position:[offsetX + 5,1.5,5], rotation:[0,3,1], scale:0.008, color:0x251101 },
+  { name:'Bocina1', file:'recursos/MusicColumn.fbx', position:[6,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
+  { name:'Bocina2', file:'recursos/MusicColumn.fbx', position:[12,2,12], rotation:[0,3.1,0], scale:0.006, color:0x000000 },
+  { name:'Sofa', file:'recursos/Couch.fbx', position:[-8,0,-9], rotation:[0,0,0], scale:0.03, color:0x000000 },
+  { name:'Mueble', file:'recursos/modern_cabinet_hutch.fbx', position:[9,0,-13], rotation:[0,3.1,0], scale:0.04, color:0x956a46 },
+  { name:'Lavadora', file:'recursos/washing_machine.fbx', position:[+offsetX - 45, 3, -6], rotation:[0,6.255,0], scale:0.005, color:0xFFFFFF },
+  { name:'Mueble2', file:'recursos/Arverne Hall Tree.fbx', position:[offsetX + 5, 3, -6.5], rotation:[0,-1.56,0], scale:0.035, color:0x83420c }
 ];
 
 decorConfigs.forEach(cfg => {
